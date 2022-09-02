@@ -30,6 +30,17 @@ func checkCommand() *coral.Command {
 		ctx := cmd.Context()
 
 		logger := sakeyrotator.NewLogger(logLevel, stdout, stderr)
+
+		if expiryInDays < 2 {
+			logger.Fatal("days cannot be smaller than 2")
+		}
+		if renewalWindowInDays < 1 {
+			logger.Fatal("window cannot be smaller than 1")
+		}
+		if renewalWindowInDays >= expiryInDays {
+			logger.Fatal("window should be smaller than days")
+		}
+
 		rotator, err := sakeyrotator.NewRotator(ctx, logger)
 		if err != nil {
 			logger.Fatal("error creating the rotator", "service_account", serviceAccountEmail, "err", err)

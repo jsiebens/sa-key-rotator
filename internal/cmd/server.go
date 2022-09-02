@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func serverCommand() *coral.Command {
@@ -56,6 +57,34 @@ func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func
 			return
 		}
 
+		var valid = true
+
+		if strings.TrimSpace(m.ServiceAccountEmail) == "" {
+			logger.Warn("invalid request, service_account field is missing")
+			valid = false
+		}
+		if strings.TrimSpace(m.BucketName) == "" {
+			logger.Warn("invalid request, bucket field is missing")
+			valid = false
+		}
+		if m.Days < 2 {
+			logger.Warn("invalid request, days cannot be smaller than 2")
+			valid = false
+		}
+		if m.RenewalWindow < 1 {
+			logger.Warn("invalid request, renewal_window cannot be smaller than 1")
+			valid = false
+		}
+		if m.RenewalWindow >= m.Days {
+			logger.Warn("invalid request, renewal_window should be smaller than days")
+			valid = false
+		}
+
+		if !valid {
+			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
+			return
+		}
+
 		if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow); err != nil {
 			logger.Error("error rotating service account key",
 				"service_account", m.ServiceAccountEmail,
@@ -69,7 +98,7 @@ func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func
 
 type Message struct {
 	ServiceAccountEmail string `json:"service_account"`
-	BucketName          string `json:"bucket_name"`
+	BucketName          string `json:"bucket"`
 	Days                int    `json:"days"`
 	RenewalWindow       int    `json:"renewal_window"`
 }
