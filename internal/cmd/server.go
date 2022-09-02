@@ -1,0 +1,75 @@
+package cmd
+
+import (
+	"encoding/json"
+	"github.com/jsiebens/sa-key-rotator/pkg/sakeyrotator"
+	"github.com/muesli/coral"
+	"io/ioutil"
+	"net/http"
+	"os"
+)
+
+func serverCommand() *coral.Command {
+	command := &coral.Command{
+		Use:          "server",
+		SilenceUsage: true,
+	}
+
+	command.RunE = func(cmd *coral.Command, args []string) error {
+		ctx := cmd.Context()
+
+		logger := sakeyrotator.NewLogger(logLevel, stdout, stderr)
+		rotator, err := sakeyrotator.NewRotator(ctx, logger)
+		if err != nil {
+			return err
+		}
+
+		http.HandleFunc("/", NewHandler(rotator, logger))
+
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
+		if err := http.ListenAndServe(":"+port, nil); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	return command
+}
+
+func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var m Message
+
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			logger.Error("error reading request-body", "err", err)
+			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
+			return
+		}
+		if err := json.Unmarshal(body, &m); err != nil {
+			logger.Error("error reading request-body", "err", err)
+			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
+			return
+		}
+
+		if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow); err != nil {
+			logger.Error("error rotating service account key",
+				"service_account", m.ServiceAccountEmail,
+				"err", err,
+			)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+type Message struct {
+	ServiceAccountEmail string `json:"service_account"`
+	BucketName          string `json:"bucket_name"`
+	Days                int    `json:"days"`
+	RenewalWindow       int    `json:"renewal_window"`
+}
