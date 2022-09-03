@@ -87,10 +87,6 @@ func (r *Rotator) Rotate(ctx context.Context, serviceAccountEmail, name, bucket 
 		if err != nil {
 			return err
 		}
-		validAfter, err := time.Parse(time.RFC3339, k.ValidAfterTime)
-		if err != nil {
-			return err
-		}
 
 		pivotDate := validBefore.AddDate(0, 0, -renewalWindowInDays)
 
@@ -98,7 +94,7 @@ func (r *Rotator) Rotate(ctx context.Context, serviceAccountEmail, name, bucket 
 			createNewKey = false
 		}
 
-		if now.After(validAfter) {
+		if now.After(validBefore) {
 			keysToRemove = append(keysToRemove, k.Name)
 		}
 	}
