@@ -16,12 +16,16 @@ func checkCommand() *coral.Command {
 	var bucket string
 	var expiryInDays int
 	var renewalWindowInDays int
+	var forceCreate bool
+	var forceDelete bool
 
 	command.Flags().StringVar(&name, "name", sakeyrotator.DefaultName, "")
 	command.Flags().StringVar(&serviceAccountEmail, "service-account", "", "")
 	command.Flags().StringVar(&bucket, "bucket", "", "")
 	command.Flags().IntVar(&expiryInDays, "days", 90, "number of days a key is valid for")
 	command.Flags().IntVar(&renewalWindowInDays, "window", 15, "span of days at the end of the key's validity period in which it should be renewed/rotated")
+	command.Flags().BoolVar(&forceCreate, "force-create", false, "")
+	command.Flags().BoolVar(&forceDelete, "force-delete", false, "")
 
 	_ = command.MarkFlagRequired("service-account")
 	_ = command.MarkFlagRequired("bucket")
@@ -46,7 +50,7 @@ func checkCommand() *coral.Command {
 			logger.Fatal("error creating the rotator", "service_account", serviceAccountEmail, "err", err)
 		}
 
-		if err := rotator.Rotate(ctx, serviceAccountEmail, name, bucket, expiryInDays, renewalWindowInDays); err != nil {
+		if err := rotator.Rotate(ctx, serviceAccountEmail, name, bucket, expiryInDays, renewalWindowInDays, forceCreate, forceDelete); err != nil {
 			logger.Fatal("error rotating keys", "service_account", serviceAccountEmail, "err", err)
 		}
 	}

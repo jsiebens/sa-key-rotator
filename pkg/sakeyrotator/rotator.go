@@ -44,7 +44,15 @@ func NewRotator(ctx context.Context, logger *Logger) (*Rotator, error) {
 	}, nil
 }
 
-func (r *Rotator) Rotate(ctx context.Context, serviceAccountEmail, name, bucket string, expiryInDays, renewalWindowInDays int) error {
+func (r *Rotator) Rotate(ctx context.Context,
+	serviceAccountEmail,
+	name,
+	bucket string,
+	expiryInDays,
+	renewalWindowInDays int,
+	forceCreate,
+	forceDelete bool) error {
+
 	r.logger.Info("checking keys for service account", "service_account", serviceAccountEmail)
 
 	resource := "projects/-/serviceAccounts/" + serviceAccountEmail
@@ -79,13 +87,18 @@ func (r *Rotator) Rotate(ctx context.Context, serviceAccountEmail, name, bucket 
 	for _, k := range userManagedKeys.Keys {
 		id := strings.Split(k.Name, "/")[5]
 		cn := commonNames[id]
-		if cn != name {
-			continue
-		}
 
 		validBefore, err := time.Parse(time.RFC3339, k.ValidBeforeTime)
 		if err != nil {
 			return err
+		}
+
+		if (forceDelete && cn == name) || now.After(validBefore) {
+			keysToRemove = append(keysToRemove, k.Name)
+		}
+
+		if cn != name {
+			continue
 		}
 
 		pivotDate := validBefore.AddDate(0, 0, -renewalWindowInDays)
@@ -93,14 +106,14 @@ func (r *Rotator) Rotate(ctx context.Context, serviceAccountEmail, name, bucket 
 		if now.Before(pivotDate) {
 			createNewKey = false
 		}
-
-		if now.After(validBefore) {
-			keysToRemove = append(keysToRemove, k.Name)
-		}
 	}
 
-	if createNewKey {
-		r.logger.Info("current key is about to expire, uploading a new one", "service_account", serviceAccountEmail)
+	if forceCreate || createNewKey {
+		if forceCreate {
+			r.logger.Info("creating and uploading a new key (forced)", "service_account", serviceAccountEmail)
+		} else {
+			r.logger.Info("current key is about to expire, uploading a new one", "service_account", serviceAccountEmail)
+		}
 		if err := r.uploadNewKey(ctx, account, name, bucket, notBefore, notAfter); err != nil {
 			return err
 		}
@@ -110,7 +123,11 @@ func (r *Rotator) Rotate(ctx context.Context, serviceAccountEmail, name, bucket 
 		if _, err := r.iamService.Projects.ServiceAccounts.Keys.Delete(k).Context(ctx).Do(); err != nil {
 			r.logger.Warn("failed to delete expired key", "service_account", serviceAccountEmail, "key_id", k, "err", err)
 		}
-		r.logger.Info("deleted expired key", "service_account", serviceAccountEmail, "key_id", k)
+		if forceDelete {
+			r.logger.Info("deleted existing key (forced)", "service_account", serviceAccountEmail, "key_id", k)
+		} else {
+			r.logger.Info("deleted expired key", "service_account", serviceAccountEmail, "key_id", k)
+		}
 	}
 
 	if !createNewKey && len(keysToRemove) == 0 {

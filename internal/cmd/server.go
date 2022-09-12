@@ -85,7 +85,7 @@ func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func
 			return
 		}
 
-		if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow); err != nil {
+		if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow, false, false); err != nil {
 			logger.Error("error rotating service account key",
 				"service_account", m.ServiceAccountEmail,
 				"err", err,
