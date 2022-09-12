@@ -113,7 +113,9 @@ func (r *Rotator) Rotate(ctx context.Context, serviceAccountEmail, name, bucket 
 		r.logger.Info("deleted expired key", "service_account", serviceAccountEmail, "key_id", k)
 	}
 
-	r.logger.Info("nothing do to, everything is fine!", "service_account", serviceAccountEmail)
+	if !createNewKey && len(keysToRemove) == 0 {
+		r.logger.Info("nothing do to, everything is fine!", "service_account", serviceAccountEmail)
+	}
 
 	return nil
 }
