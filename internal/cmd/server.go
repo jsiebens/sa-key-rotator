@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"github.com/jsiebens/sa-key-rotator/pkg/sakeyrotator"
 	"github.com/muesli/coral"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -43,54 +43,62 @@ func serverCommand() *coral.Command {
 
 func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var m Message
+		var messages []Message
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			logger.Error("error reading request-body", "err", err)
 			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
 			return
 		}
-		if err := json.Unmarshal(body, &m); err != nil {
+		if err := json.Unmarshal(body, &messages); err != nil {
 			logger.Error("error reading request-body", "err", err)
 			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
 			return
 		}
 
-		var valid = true
+		var ok = true
 
-		if strings.TrimSpace(m.ServiceAccountEmail) == "" {
-			logger.Warn("invalid request, service_account field is missing")
-			valid = false
-		}
-		if strings.TrimSpace(m.BucketName) == "" {
-			logger.Warn("invalid request, bucket field is missing")
-			valid = false
-		}
-		if m.Days < 2 {
-			logger.Warn("invalid request, days cannot be smaller than 2")
-			valid = false
-		}
-		if m.RenewalWindow < 1 {
-			logger.Warn("invalid request, renewal_window cannot be smaller than 1")
-			valid = false
-		}
-		if m.RenewalWindow >= m.Days {
-			logger.Warn("invalid request, renewal_window should be smaller than days")
-			valid = false
+		for _, m := range messages {
+			var valid = true
+
+			if strings.TrimSpace(m.ServiceAccountEmail) == "" {
+				logger.Warn("invalid request, service_account field is missing")
+				valid = false
+			}
+			if strings.TrimSpace(m.BucketName) == "" {
+				logger.Warn("invalid request, bucket field is missing")
+				valid = false
+			}
+			if m.Days < 2 {
+				logger.Warn("invalid request, days cannot be smaller than 2")
+				valid = false
+			}
+			if m.RenewalWindow < 1 {
+				logger.Warn("invalid request, renewal_window cannot be smaller than 1")
+				valid = false
+			}
+			if m.RenewalWindow >= m.Days {
+				logger.Warn("invalid request, renewal_window should be smaller than days")
+				valid = false
+			}
+
+			if !valid {
+				ok = false
+				continue
+			}
+
+			if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow, false, false); err != nil {
+				logger.Error("error rotating service account key",
+					"service_account", m.ServiceAccountEmail,
+					"err", err,
+				)
+				ok = false
+			}
 		}
 
-		if !valid {
+		if !ok {
 			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
-			return
-		}
-
-		if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow, false, false); err != nil {
-			logger.Error("error rotating service account key",
-				"service_account", m.ServiceAccountEmail,
-				"err", err,
-			)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
