@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 )
 
 func serverCommand() *coral.Command {
@@ -58,48 +59,69 @@ func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func
 		}
 
 		var ok = true
+		var wg sync.WaitGroup
+
+		wg.Add(len(messages))
+
+		errChannel := make(chan bool, 1)
+		finished := make(chan bool, 1)
 
 		for _, m := range messages {
-			var valid = true
+			go func(x Message) {
+				defer wg.Done()
+				var valid = true
 
-			if strings.TrimSpace(m.ServiceAccountEmail) == "" {
-				logger.Warn("invalid request, service_account field is missing")
-				valid = false
-			}
-			if strings.TrimSpace(m.BucketName) == "" {
-				logger.Warn("invalid request, bucket field is missing")
-				valid = false
-			}
-			if m.Days < 2 {
-				logger.Warn("invalid request, days cannot be smaller than 2")
-				valid = false
-			}
-			if m.RenewalWindow < 1 {
-				logger.Warn("invalid request, renewal_window cannot be smaller than 1")
-				valid = false
-			}
-			if m.RenewalWindow >= m.Days {
-				logger.Warn("invalid request, renewal_window should be smaller than days")
-				valid = false
-			}
+				if strings.TrimSpace(m.ServiceAccountEmail) == "" {
+					logger.Warn("invalid request, service_account field is missing")
+					valid = false
+				}
+				if strings.TrimSpace(m.BucketName) == "" {
+					logger.Warn("invalid request, bucket field is missing")
+					valid = false
+				}
+				if m.Days < 2 {
+					logger.Warn("invalid request, days cannot be smaller than 2")
+					valid = false
+				}
+				if m.RenewalWindow < 1 {
+					logger.Warn("invalid request, renewal_window cannot be smaller than 1")
+					valid = false
+				}
+				if m.RenewalWindow >= m.Days {
+					logger.Warn("invalid request, renewal_window should be smaller than days")
+					valid = false
+				}
 
-			if !valid {
-				ok = false
-				continue
-			}
+				if !valid {
+					errChannel <- valid
+					return
+				}
 
-			if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow, false, false); err != nil {
-				logger.Error("error rotating service account key",
-					"service_account", m.ServiceAccountEmail,
-					"err", err,
-				)
-				ok = false
-			}
+				if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow, false, false); err != nil {
+					logger.Error("error rotating service account key",
+						"service_account", m.ServiceAccountEmail,
+						"err", err,
+					)
+					errChannel <- false
+				}
+			}(m)
 		}
 
-		if !ok {
-			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
-			return
+		go func() {
+			wg.Wait()
+			close(finished)
+		}()
+
+		for {
+			select {
+			case <-finished:
+				if !ok {
+					http.Error(w, "Bad Request (body)", http.StatusBadRequest)
+				}
+				return
+			case b := <-errChannel:
+				ok = ok && b
+			}
 		}
 	}
 }
