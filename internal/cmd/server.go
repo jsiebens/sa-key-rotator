@@ -66,28 +66,28 @@ func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func
 		errChannel := make(chan bool, 1)
 		finished := make(chan bool, 1)
 
-		for _, m := range messages {
+		for _, message := range messages {
 			go func(x Message) {
 				defer wg.Done()
 				var valid = true
 
-				if strings.TrimSpace(m.ServiceAccountEmail) == "" {
+				if strings.TrimSpace(x.ServiceAccountEmail) == "" {
 					logger.Warn("invalid request, service_account field is missing")
 					valid = false
 				}
-				if strings.TrimSpace(m.BucketName) == "" {
+				if strings.TrimSpace(x.BucketName) == "" {
 					logger.Warn("invalid request, bucket field is missing")
 					valid = false
 				}
-				if m.Days < 2 {
+				if x.Days < 2 {
 					logger.Warn("invalid request, days cannot be smaller than 2")
 					valid = false
 				}
-				if m.RenewalWindow < 1 {
+				if x.RenewalWindow < 1 {
 					logger.Warn("invalid request, renewal_window cannot be smaller than 1")
 					valid = false
 				}
-				if m.RenewalWindow >= m.Days {
+				if x.RenewalWindow >= x.Days {
 					logger.Warn("invalid request, renewal_window should be smaller than days")
 					valid = false
 				}
@@ -97,14 +97,14 @@ func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func
 					return
 				}
 
-				if err := rotator.Rotate(r.Context(), m.ServiceAccountEmail, sakeyrotator.DefaultName, m.BucketName, m.Days, m.RenewalWindow, false, false); err != nil {
+				if err := rotator.Rotate(r.Context(), x.ServiceAccountEmail, sakeyrotator.DefaultName, x.BucketName, x.Days, x.RenewalWindow, false, false); err != nil {
 					logger.Error("error rotating service account key",
-						"service_account", m.ServiceAccountEmail,
+						"service_account", x.ServiceAccountEmail,
 						"err", err,
 					)
 					errChannel <- false
 				}
-			}(m)
+			}(message)
 		}
 
 		go func() {
