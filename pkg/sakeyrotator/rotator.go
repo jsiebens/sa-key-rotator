@@ -168,7 +168,7 @@ func (r *Rotator) uploadNewKey(ctx context.Context, account *iam.ServiceAccount,
 		return err
 	}
 
-	jsonFileName := fmt.Sprintf("%s-%s.json", notBefore.Format("2006-02-01"), split[5][:10])
+	jsonFileName := fmt.Sprintf("%s-%s.json", notBefore.Format("2006-01-02"), split[5][:10])
 	writer := r.storageService.Bucket(bucket).Object(jsonFileName).NewWriter(ctx)
 
 	if _, err := writer.Write(marshal); err != nil {
