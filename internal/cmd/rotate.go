@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"github.com/jsiebens/sa-key-rotator/pkg/sakeyrotator"
-	"github.com/muesli/coral"
+	"github.com/spf13/cobra"
 )
 
-func checkCommand() *coral.Command {
-	command := &coral.Command{
+func checkCommand() *cobra.Command {
+	command := &cobra.Command{
 		Use:          "rotate",
 		SilenceUsage: true,
 	}
@@ -30,7 +30,7 @@ func checkCommand() *coral.Command {
 	_ = command.MarkFlagRequired("service-account")
 	_ = command.MarkFlagRequired("bucket")
 
-	command.Run = func(cmd *coral.Command, args []string) {
+	command.Run = func(cmd *cobra.Command, args []string) {
 		ctx := cmd.Context()
 
 		logger := sakeyrotator.NewLogger(logLevel, stdout, stderr)

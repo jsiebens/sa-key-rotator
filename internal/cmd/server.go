@@ -3,7 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"github.com/jsiebens/sa-key-rotator/pkg/sakeyrotator"
-	"github.com/muesli/coral"
+	"github.com/spf13/cobra"
 	"io"
 	"net/http"
 	"os"
@@ -11,13 +11,13 @@ import (
 	"sync"
 )
 
-func serverCommand() *coral.Command {
-	command := &coral.Command{
+func serverCommand() *cobra.Command {
+	command := &cobra.Command{
 		Use:          "server",
 		SilenceUsage: true,
 	}
 
-	command.RunE = func(cmd *coral.Command, args []string) error {
+	command.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
 		logger := sakeyrotator.NewLogger(logLevel, stdout, stderr)

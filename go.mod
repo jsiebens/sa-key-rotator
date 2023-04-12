@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	cloud.google.com/go/storage v1.30.1
-	github.com/muesli/coral v1.0.0
+	github.com/spf13/cobra v1.7.0
 	golang.org/x/net v0.9.0
 	google.golang.org/api v0.117.0
 )
