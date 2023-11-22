@@ -1,11 +1,12 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/jsiebens/sa-key-rotator/pkg/sakeyrotator"
 	"github.com/spf13/cobra"
 )
 
-func checkCommand() *cobra.Command {
+func rotateCommand() *cobra.Command {
 	command := &cobra.Command{
 		Use:          "rotate",
 		SilenceUsage: true,
@@ -30,29 +31,29 @@ func checkCommand() *cobra.Command {
 	_ = command.MarkFlagRequired("service-account")
 	_ = command.MarkFlagRequired("bucket")
 
-	command.Run = func(cmd *cobra.Command, args []string) {
+	command.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		logger := sakeyrotator.NewLogger(logLevel, stdout, stderr)
-
 		if expiryInDays < 2 {
-			logger.Fatal("days cannot be smaller than 2")
+			return fmt.Errorf("days cannot be smaller than 2")
 		}
 		if renewalWindowInDays < 1 {
-			logger.Fatal("window cannot be smaller than 1")
+			return fmt.Errorf("window cannot be smaller than 1")
 		}
 		if renewalWindowInDays >= expiryInDays {
-			logger.Fatal("window should be smaller than days")
+			return fmt.Errorf("window should be smaller than days")
 		}
 
-		rotator, err := sakeyrotator.NewRotator(ctx, logger)
+		rotator, err := sakeyrotator.NewRotator(ctx)
 		if err != nil {
-			logger.Fatal("error creating the rotator", "service_account", serviceAccountEmail, "err", err)
+			return fmt.Errorf("error creating the rotator: %w", err)
 		}
 
 		if err := rotator.Rotate(ctx, serviceAccountEmail, name, bucket, expiryInDays, renewalWindowInDays, forceCreate, forceDelete); err != nil {
-			logger.Fatal("error rotating keys", "service_account", serviceAccountEmail, "err", err)
+			return fmt.Errorf("error rotating keys: %w", err)
 		}
+
+		return nil
 	}
 
 	return command

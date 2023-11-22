@@ -17,7 +17,7 @@ var (
 func Command() *cobra.Command {
 	rootCmd := rootCommand()
 	rootCmd.AddCommand(serverCommand())
-	rootCmd.AddCommand(checkCommand())
+	rootCmd.AddCommand(rotateCommand())
 	return rootCmd
 }
 

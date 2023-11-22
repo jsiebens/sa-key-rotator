@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/jsiebens/sa-key-rotator/internal/cmd"
+	_ "github.com/jsiebens/sa-key-rotator/internal/log"
 	"os"
 )
 

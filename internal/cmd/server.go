@@ -5,6 +5,7 @@ import (
 	"github.com/jsiebens/sa-key-rotator/pkg/sakeyrotator"
 	"github.com/spf13/cobra"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -20,13 +21,12 @@ func serverCommand() *cobra.Command {
 	command.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		logger := sakeyrotator.NewLogger(logLevel, stdout, stderr)
-		rotator, err := sakeyrotator.NewRotator(ctx, logger)
+		rotator, err := sakeyrotator.NewRotator(ctx)
 		if err != nil {
 			return err
 		}
 
-		http.HandleFunc("/", NewHandler(rotator, logger))
+		http.HandleFunc("/", NewHandler(rotator))
 
 		port := os.Getenv("PORT")
 		if port == "" {
@@ -42,18 +42,18 @@ func serverCommand() *cobra.Command {
 	return command
 }
 
-func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func(w http.ResponseWriter, r *http.Request) {
+func NewHandler(rotator *sakeyrotator.Rotator) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var messages []Message
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			logger.Error("error reading request-body", "err", err)
+			slog.Error("error reading request-body", "err", err)
 			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
 			return
 		}
 		if err := json.Unmarshal(body, &messages); err != nil {
-			logger.Error("error reading request-body", "err", err)
+			slog.Error("error reading request-body", "err", err)
 			http.Error(w, "Bad Request (body)", http.StatusBadRequest)
 			return
 		}
@@ -72,23 +72,23 @@ func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func
 				var valid = true
 
 				if strings.TrimSpace(x.ServiceAccountEmail) == "" {
-					logger.Warn("invalid request, service_account field is missing")
+					slog.Warn("invalid request, service_account field is missing")
 					valid = false
 				}
 				if strings.TrimSpace(x.BucketName) == "" {
-					logger.Warn("invalid request, bucket field is missing")
+					slog.Warn("invalid request, bucket field is missing")
 					valid = false
 				}
 				if x.Days < 2 {
-					logger.Warn("invalid request, days cannot be smaller than 2")
+					slog.Warn("invalid request, days cannot be smaller than 2")
 					valid = false
 				}
 				if x.RenewalWindow < 1 {
-					logger.Warn("invalid request, renewal_window cannot be smaller than 1")
+					slog.Warn("invalid request, renewal_window cannot be smaller than 1")
 					valid = false
 				}
 				if x.RenewalWindow >= x.Days {
-					logger.Warn("invalid request, renewal_window should be smaller than days")
+					slog.Warn("invalid request, renewal_window should be smaller than days")
 					valid = false
 				}
 
@@ -98,7 +98,7 @@ func NewHandler(rotator *sakeyrotator.Rotator, logger *sakeyrotator.Logger) func
 				}
 
 				if err := rotator.Rotate(r.Context(), x.ServiceAccountEmail, sakeyrotator.DefaultName, x.BucketName, x.Days, x.RenewalWindow, false, false); err != nil {
-					logger.Error("error rotating service account key",
+					slog.Error("error rotating service account key",
 						"service_account", x.ServiceAccountEmail,
 						"err", err,
 					)

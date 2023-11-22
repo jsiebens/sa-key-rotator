@@ -1,8 +1,9 @@
 module github.com/jsiebens/sa-key-rotator
 
-go 1.21
+go 1.21.4
 
 require (
+	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/storage v1.35.1
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/net v0.18.0
@@ -12,7 +13,6 @@ require (
 require (
 	cloud.google.com/go v0.110.10 // indirect
 	cloud.google.com/go/compute v1.23.3 // indirect
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v1.1.5 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect

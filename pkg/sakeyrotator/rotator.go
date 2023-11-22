@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iam/v1"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strings"
@@ -21,12 +22,11 @@ import (
 const DefaultName = "sa-key-rotator"
 
 type Rotator struct {
-	logger         *Logger
 	iamService     *iam.Service
 	storageService *storage.Client
 }
 
-func NewRotator(ctx context.Context, logger *Logger) (*Rotator, error) {
+func NewRotator(ctx context.Context) (*Rotator, error) {
 	iamService, err := iam.NewService(ctx)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,6 @@ func NewRotator(ctx context.Context, logger *Logger) (*Rotator, error) {
 	}
 
 	return &Rotator{
-		logger:         logger,
 		iamService:     iamService,
 		storageService: storageClient,
 	}, nil
@@ -53,7 +52,7 @@ func (r *Rotator) Rotate(ctx context.Context,
 	forceCreate,
 	forceDelete bool) error {
 
-	r.logger.Info("checking keys for service account", "service_account", serviceAccountEmail)
+	slog.Info("checking keys for service account", "service_account", serviceAccountEmail)
 
 	resource := "projects/-/serviceAccounts/" + serviceAccountEmail
 
@@ -72,7 +71,7 @@ func (r *Rotator) Rotate(ctx context.Context,
 	}
 
 	if len(userManagedKeys.Keys) == 0 {
-		r.logger.Info("no keys found, uploading a new one", "service_account", serviceAccountEmail)
+		slog.Info("no keys found, uploading a new one", "service_account", serviceAccountEmail)
 		return r.uploadNewKey(ctx, account, name, bucket, notBefore, notAfter)
 	}
 
@@ -110,9 +109,9 @@ func (r *Rotator) Rotate(ctx context.Context,
 
 	if forceCreate || createNewKey {
 		if forceCreate {
-			r.logger.Info("creating and uploading a new key (forced)", "service_account", serviceAccountEmail)
+			slog.Info("creating and uploading a new key (forced)", "service_account", serviceAccountEmail)
 		} else {
-			r.logger.Info("current key is about to expire, uploading a new one", "service_account", serviceAccountEmail)
+			slog.Info("current key is about to expire, uploading a new one", "service_account", serviceAccountEmail)
 		}
 		if err := r.uploadNewKey(ctx, account, name, bucket, notBefore, notAfter); err != nil {
 			return err
@@ -121,17 +120,17 @@ func (r *Rotator) Rotate(ctx context.Context,
 
 	for _, k := range keysToRemove {
 		if _, err := r.iamService.Projects.ServiceAccounts.Keys.Delete(k).Context(ctx).Do(); err != nil {
-			r.logger.Warn("failed to delete expired key", "service_account", serviceAccountEmail, "key_id", k, "err", err)
+			slog.Warn("failed to delete expired key", "service_account", serviceAccountEmail, "key_id", k, "err", err)
 		}
 		if forceDelete {
-			r.logger.Info("deleted existing key (forced)", "service_account", serviceAccountEmail, "key_id", k)
+			slog.Info("deleted existing key (forced)", "service_account", serviceAccountEmail, "key_id", k)
 		} else {
-			r.logger.Info("deleted expired key", "service_account", serviceAccountEmail, "key_id", k)
+			slog.Info("deleted expired key", "service_account", serviceAccountEmail, "key_id", k)
 		}
 	}
 
 	if !createNewKey && len(keysToRemove) == 0 {
-		r.logger.Info("nothing do to, everything is fine!", "service_account", serviceAccountEmail)
+		slog.Info("nothing do to, everything is fine!", "service_account", serviceAccountEmail)
 	}
 
 	return nil
@@ -179,7 +178,7 @@ func (r *Rotator) uploadNewKey(ctx context.Context, account *iam.ServiceAccount,
 		return fmt.Errorf("failed to store service account key in bucket %s: %w", bucket, err)
 	}
 
-	r.logger.Info("uploaded a new key",
+	slog.Info("uploaded a new key",
 		"service_account", split[3],
 		"key_id", split[5],
 		"valid_from", notBefore.Format(time.RFC3339),
@@ -261,4 +260,9 @@ func extractCommonName(cert string) (string, error) {
 		return "", err
 	}
 	return certificate.Subject.CommonName, nil
+}
+
+func startOfDay() time.Time {
+	t := time.Now().AddDate(0, 0, 0)
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
