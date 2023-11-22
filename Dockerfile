@@ -1,11 +1,3 @@
-FROM --platform=$BUILDPLATFORM alpine AS builder
-
-RUN apk --no-cache --update add ca-certificates && \
-  update-ca-certificates
-
-
-FROM scratch
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY sa-key-rotator /bin/sa-key-rotator
-
-ENTRYPOINT ["/bin/sa-key-rotator"]
+FROM cgr.dev/chainguard/static:latest
+COPY sa-key-rotator /sa-key-rotator
+ENTRYPOINT ["/sa-key-rotator"]
