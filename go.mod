@@ -1,6 +1,6 @@
 module github.com/jsiebens/sa-key-rotator
 
-go 1.21.4
+go 1.21
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
